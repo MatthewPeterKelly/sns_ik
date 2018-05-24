@@ -35,7 +35,8 @@ link_directories(${orocos_kdl_LIBRARY_DIRS})
 
 # library for private utilities
 add_library(sns_ik_util
-            utilities/sns_ik_math_utils.cpp)
+            utilities/sns_ik_math_utils.cpp
+            utilities/sparse_quad_prog_solver.cpp)
 target_link_libraries(sns_ik_util)
 
 # library for public API
@@ -67,6 +68,8 @@ if (CATKIN_ENABLE_TESTING)
   target_link_libraries(rng_utilities_test sns_ik sns_ik_test ${catkin_LIBRARIES})
   catkin_add_gtest(sns_ik_math_utils_test test/sns_ik_math_utils_test.cpp)
   target_link_libraries(sns_ik_math_utils_test sns_ik sns_ik_test ${catkin_LIBRARIES})
+  catkin_add_gtest(sparse_quad_prog_solver_test test/sparse_quad_prog_solver_test.cpp)
+  target_link_libraries(sparse_quad_prog_solver_test sns_ik sns_ik_test ${catkin_LIBRARIES})
   catkin_add_gtest(sns_ik_pos_test test/sns_ik_pos_test.cpp)
   target_link_libraries(sns_ik_pos_test sns_ik sns_ik_test ${catkin_LIBRARIES})
   catkin_add_gtest(sns_ik_vel_test test/sns_ik_vel_test.cpp)
