@@ -32,6 +32,29 @@
 
 namespace sns_ik {
 
+/**************************************************************************************************/
+
+std::string getSparsityPatternString(const Eigen::SparseMatrix<double>& matrix)
+{
+  std::string str = "";
+  Eigen::MatrixXd dense = Eigen::MatrixXd(matrix);
+  size_t nRows = matrix.rows();
+  size_t nCols = matrix.cols();
+  for (size_t iRow = 0; iRow < nRows; iRow++) {
+    str += "|";
+    for (size_t iCol = 0; iCol < nCols; iCol++) {
+      double value = dense(iRow,iCol);
+      if (std::fabs(value) < 1e-10) {
+        str += " ";
+      } else {
+        str += "X";
+      }
+    }
+    str += "|\n";
+  }
+  return str;
+}
+
 /*************************************************************************************************/
 
 SparseQuadProgSolver::Result SparseQuadProgSolver::solve(const Eigen::VectorXd& xLow, const Eigen::VectorXd& xUpp,
@@ -52,6 +75,7 @@ SparseQuadProgSolver::Result SparseQuadProgSolver::solve(const Eigen::VectorXd& 
   if (b.size() != A.rows()) { ROS_ERROR("Bad input!  b.size() != A.rows()"); return result_; }
   result_.info = SparseQuadProgSolver::ExitCode::InternalError; // this will be overwritten
 
+
   // Verify that the limits are in the correct order:
   for (int iVar = 0; iVar < nVar_; iVar++) {
     if (xUpp(iVar) < xLow(iVar)) { ROS_ERROR("Bad input!  xUpp(iVar) < xLow(iVar)"); return result_; }
@@ -63,12 +87,21 @@ SparseQuadProgSolver::Result SparseQuadProgSolver::solve(const Eigen::VectorXd& 
   tol_ = tol;
   initializeTripletList();
 
+
+  /* DEBUG */ ROS_INFO_STREAM("xLow_: " << xLow_.transpose());
+  /* DEBUG */ ROS_INFO_STREAM("xUpp_: " << xUpp_.transpose());
+  /* DEBUG */ ROS_INFO_STREAM("w_: " << w_.transpose());
+  /* DEBUG */ ROS_INFO_STREAM("A_:\n" << A_);
+  /* DEBUG */ ROS_INFO_STREAM("b_: " << b_.transpose());
+
+
   // Initialize the active set by assuming that no constraints are active:
   actSetLow_ = std::vector<bool>(nVar_, false);
   actSetUpp_ = std::vector<bool>(nVar_, false);
 
   // Main iteration loop
   for (int iter = 0; iter < maxIter; iter++) {
+    /* DEBUG */ ROS_INFO("Iteration: %d", iter);
 
     // Solve the QP with the current active set:
     if (!solveWithActiveSet()) {
@@ -84,6 +117,7 @@ SparseQuadProgSolver::Result SparseQuadProgSolver::solve(const Eigen::VectorXd& 
 
     // Check for convergence:
     if (result_.info == SparseQuadProgSolver::ExitCode::Success) {
+      /* HACK */ ROS_INFO("Done!");
       return result_;  // successful convergence
     }
   }
@@ -105,6 +139,8 @@ bool SparseQuadProgSolver::solveWithActiveSet()
   removeActiveSetConstraints();  // remove the old constraints
   appendActiveSetConstraints();  // add new ones
 
+  /* DEBUG */ ROS_INFO_STREAM("d_: " << d_.transpose());
+
   // Create the vector of constraints:
   int nDecVar = nVar_ + nCst_ + d_.size();
   Eigen::VectorXd cstVec(nDecVar);
@@ -114,6 +150,8 @@ bool SparseQuadProgSolver::solveWithActiveSet()
   Eigen::SparseMatrix<double> cstMat(nDecVar, nDecVar);
   cstMat.setFromTriplets(triplets_.begin(), triplets_.end());
   cstMat.makeCompressed();  // this is important for the QR decomposition to work properly
+
+  /* DEBUG */ ROS_INFO("cstMat: \n%s", getSparsityPatternString(cstMat).c_str());
 
   // Solve the linear system
   Eigen::SparseQR<Eigen::SparseMatrix<double>, Eigen::COLAMDOrdering<int>> solver(cstMat);
@@ -130,6 +168,8 @@ bool SparseQuadProgSolver::solveWithActiveSet()
 
 bool SparseQuadProgSolver::updateActiveSet()
 {
+  /* DEBUG */ ROS_INFO_STREAM("Full decision variables: " << decVar_.transpose());
+
   // Compute the most negative lagrange multiplier for the active set
   double lagMin = 0.0;  // minimum value of the lagrange mutliplier
   int iAct = 0; // index into the current active set
@@ -164,6 +204,7 @@ bool SparseQuadProgSolver::updateActiveSet()
 
   // Remove one element from the active set, if allowed:
   if (iRem >= 0) {
+    /* DEBUG */ ROS_INFO("Removing constraint %d from the active set.", iRem);
     actSetLow_[iRem] = false;
     actSetUpp_[iRem] = false;
   }
@@ -171,8 +212,10 @@ bool SparseQuadProgSolver::updateActiveSet()
   // Update the result data if the solution is feasible and better than previous
   if (isFeasible) {
     double objVal = computeObjectiveFunction();
+    /* DEBUG */ ROS_INFO("Feasible solution with objective value: %f", objVal);
     if (objVal < result_.objVal) {
       result_.soln = decVar_.head(nVar_);
+      /* DEBUG */ ROS_INFO_STREAM("New best objective value!  DecVars: " << result_.soln.transpose());
       result_.objVal = objVal;
       result_.feasible = true;
     }
@@ -181,6 +224,7 @@ bool SparseQuadProgSolver::updateActiveSet()
   // Check if we are done:
   bool converged = iRem < 0 && isFeasible;
   if (converged) {
+    /* HACK */ ROS_INFO("Success!");
     result_.info = SparseQuadProgSolver::ExitCode::Success;
   }
   return true;
@@ -206,12 +250,15 @@ void SparseQuadProgSolver::initializeTripletList()
   nCore_ += nVar_;  // diagonal elements in H matrix
   nCore_ += 2 * nVar_ * nCst_;  // elements in both blocks of the A matrix
   int nnz = nCore_ + nVar_;  // core elements + maximum number of active set constraints
-  triplets_ = std::vector<Eigen::Triplet<double>>(nnz);
+  triplets_.clear();
+  triplets_.reserve(nnz);
 
   // Set the data for the H matrix:
   for (int iVar = 0; iVar < nVar_; iVar++) {
     // elements of the H matrix (diagonal)
     triplets_.push_back(Eigen::Triplet<double>(iVar, iVar, w_(iVar)));
+  }
+  for (int iVar = 0; iVar < nVar_; iVar++) {
     // elements of the A matrix (needed in two places)
     for (int iCst = 0; iCst < nCst_; iCst++) {
       double a = A_(iCst, iVar);
@@ -219,6 +266,8 @@ void SparseQuadProgSolver::initializeTripletList()
       triplets_.push_back(Eigen::Triplet<double>(iVar, nVar_ + iCst, a));
     }
   }
+  /* DEBUG */ ROS_INFO("Initial triplet list:");
+  printTriplets();  // HACK
 }
 
 /*************************************************************************************************/
@@ -279,7 +328,18 @@ bool SparseQuadProgSolver::appendActiveSetConstraints()
       triplets_.push_back(Eigen::Triplet<double>(iVar, nVar_ + nCst_ + iAct, 1.0));
     }
   }
+  /* DEBUG */ ROS_INFO("Triplets with active set:");
+  printTriplets();  // HACK
   return true;
+}
+
+/*************************************************************************************************/
+
+void SparseQuadProgSolver::printTriplets()
+{
+  for (auto tri : triplets_) {
+    ROS_INFO("Triplet(%d, %d) = %f", tri.row(), tri.col(), tri.value());
+  }
 }
 
 /*************************************************************************************************/

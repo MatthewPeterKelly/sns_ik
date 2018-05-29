@@ -32,6 +32,16 @@
 
 namespace sns_ik {
 
+/**************************************************************************************************/
+
+/*
+ * This helper function is primarily intended for debugging. It returns a string where each
+ * non-zero entry in the matrix is given "X" where as a zero element is given " ".
+ */
+std::string getSparsityPatternString(const Eigen::SparseMatrix<double>& matrix);
+
+/**************************************************************************************************/
+
 class SparseQuadProgSolver
 {
 
@@ -131,6 +141,11 @@ private:
    */
   double computeObjectiveFunction();
 
+  /**
+   * Diagnostics method: print the current set of triplets to ROS_INFO()
+   */
+  void printTriplets();
+
   // Local copy of the result
   SparseQuadProgSolver::Result result_;
 
@@ -170,6 +185,8 @@ private:
   double tol_;
 
 };
+
+/**************************************************************************************************/
 
 }  // namespace sns_ik
 

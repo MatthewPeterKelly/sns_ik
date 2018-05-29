@@ -29,7 +29,7 @@
 
 TEST(sparse_quad_prog_solver, HelloWorld)
 {
-  // Test problem:
+  // Very simple test problem, no constraints, solution at origin.
   sns_ik::rng_util::setRngSeed(83907, 17302);
   int nVar = 2;
   int nCst = 1;
@@ -48,6 +48,42 @@ TEST(sparse_quad_prog_solver, HelloWorld)
   sns_ik::SparseQuadProgSolver solver;
   sns_ik::SparseQuadProgSolver::Result result = solver.solve(xLow, xUpp, w, A, b, maxIter, tol);
   ASSERT_NEAR(result.objVal, 0.0, 1e-8);
+}
+
+/*************************************************************************************************/
+
+TEST(sparse_quad_prog_solver, SimpleTestOne)
+{
+  // // MATLAB CODE:
+  // H = diag([1,3,2]);
+  // zLow = [-1; -2; -3];
+  // zUpp = [ 2;  5;  4];
+  // Aeq = [ 1, 2, 2;
+  //        -2, 3, 5];
+  // beq = [2; -5];
+  // f = [0;0;0]; A = []; b = [];
+  // [z, objVal, exitCode] = quadprog(H,f,A,b,Aeq,beq,zLow,zUpp);
+  // >> z = [2.0; 0.5; -0.5];  // solution decision variables
+  // >> objVal = 2.625;  // solution objective function value
+
+  int maxIter = 100;
+  double tol = 1e-10;
+  Eigen::VectorXd xLow(3); xLow << -1.0, -2.0, -3.0;
+  Eigen::VectorXd xUpp(3); xUpp << 2.0, 5.0, 4.0;
+  Eigen::VectorXd w(3); w << 1.0, 3.0, 2.0;
+  Eigen::MatrixXd A(2, 3);
+  A.row(0) << 1.0, 2.0, 2.0;
+  A.row(1) << -2.0, 3.0, 5.0;
+  Eigen::VectorXd b(2); b << 2.0, -5.0;
+
+  // Solve:
+  sns_ik::SparseQuadProgSolver solver;
+  sns_ik::SparseQuadProgSolver::Result result = solver.solve(xLow, xUpp, w, A, b, maxIter, tol);
+  tol = 1e-6;
+  ASSERT_NEAR(result.objVal, 2.625, tol);
+  ASSERT_NEAR(result.soln(0), 2.0, tol);
+  ASSERT_NEAR(result.soln(1), 0.5, tol);
+  ASSERT_NEAR(result.soln(2), -0.5, tol);
 }
 
 /*************************************************************************************************/
