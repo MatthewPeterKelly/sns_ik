@@ -33,16 +33,13 @@ TEST(sparse_quad_prog_solver, HelloWorld)
   sns_ik::rng_util::setRngSeed(83907, 17302);
   int nVar = 2;
   int nCst = 1;
-  int maxIter = 100;
+  int maxIter = 5;
   double tol = 1e-10;
   Eigen::VectorXd xLow = sns_ik::rng_util::getRngVectorXd(0, nVar, -1.0, 0.1);
   Eigen::VectorXd xUpp = sns_ik::rng_util::getRngVectorXd(0, nVar, 0.1, 1.0);
   Eigen::VectorXd w = sns_ik::rng_util::getRngVectorXd(0, nVar, 0.1, 1.0);
-  Eigen::MatrixXd A = sns_ik::rng_util::getRngMatrixXd(0, nCst, nVar, -1.0, 1.0);
-  Eigen::VectorXd b = sns_ik::rng_util::getRngVectorXd(0, nCst, -1.0, 1.0);
-
-  A << 1.0, 1.0;
-  b << 0.0;
+  Eigen::MatrixXd A(nCst, nVar);  A << 1.0, 1.0;
+  Eigen::VectorXd b(nCst); b << 0.0;
 
   // Solve:
   sns_ik::SparseQuadProgSolver solver;
@@ -66,7 +63,7 @@ TEST(sparse_quad_prog_solver, SimpleTestOne)
   // >> z = [2.0; 0.5; -0.5];  // solution decision variables
   // >> objVal = 2.625;  // solution objective function value
 
-  int maxIter = 100;
+  int maxIter = 5;
   double tol = 1e-10;
   Eigen::VectorXd xLow(3); xLow << -1.0, -2.0, -3.0;
   Eigen::VectorXd xUpp(3); xUpp << 2.0, 5.0, 4.0;
@@ -84,6 +81,47 @@ TEST(sparse_quad_prog_solver, SimpleTestOne)
   ASSERT_NEAR(result.soln(0), 2.0, tol);
   ASSERT_NEAR(result.soln(1), 0.5, tol);
   ASSERT_NEAR(result.soln(2), -0.5, tol);
+}
+
+/*************************************************************************************************/
+
+/*
+ * This test fails due to a problem with the active set solver.
+ */
+TEST(sparse_quad_prog_solver, SimpleTestTwo)
+{
+  // // MATLAB CODE:
+  // H = diag([1,3,7,5,1]);
+  // zLow = [-1;  1; -3;  -8; 1];
+  // zUpp = [ 2;  5; -2;  -2; 9];
+  // Aeq = [ 1, 3, -3, -2, 1;
+  //        -2, 3,  5,  1, 3];
+  // beq = [34; 21];
+  // f = [0;0;0;0;0]; A = []; b = [];
+  // [z, objVal, exitCode] = quadprog(H,f,A,b,Aeq,beq,zLow,zUpp);
+  // >> z = [1.8; 5.0; -2.0; -2.0; 7.2];  // solution decision variables
+  // >> objVal = 89.04;  // solution objective function value
+
+  int maxIter = 5;
+  double tol = 1e-10;
+  Eigen::VectorXd xLow(5); xLow << -1, 1, -3, -8, 1;
+  Eigen::VectorXd xUpp(5); xUpp << 2, 5, -2, -2, 9;
+  Eigen::VectorXd w(5); w << 1,3,7,5,1;
+  Eigen::MatrixXd A(2, 5);
+  A.row(0) << 1, 3, -3, -2, 1;
+  A.row(1) << -2, 3,  5,  1, 3;
+  Eigen::VectorXd b(2); b << 34, 21;
+
+  // Solve:
+  sns_ik::SparseQuadProgSolver solver;
+  sns_ik::SparseQuadProgSolver::Result result = solver.solve(xLow, xUpp, w, A, b, maxIter, tol);
+  tol = 1e-6;
+  ASSERT_NEAR(result.objVal, 89.04, tol);
+  ASSERT_NEAR(result.soln(0), 1.8, tol);
+  ASSERT_NEAR(result.soln(1), 5.0, tol);
+  ASSERT_NEAR(result.soln(2), -2.0, tol);
+  ASSERT_NEAR(result.soln(3), -2.0, tol);
+  ASSERT_NEAR(result.soln(4), 7.2, tol);
 }
 
 /*************************************************************************************************/

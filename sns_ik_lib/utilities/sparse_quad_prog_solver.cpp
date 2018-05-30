@@ -170,6 +170,8 @@ bool SparseQuadProgSolver::updateActiveSet()
 {
   /* DEBUG */ ROS_INFO_STREAM("Full decision variables: " << decVar_.transpose());
 
+  // TODO: clean up this method
+
   // Compute the most negative lagrange multiplier for the active set
   double lagMin = 0.0;  // minimum value of the lagrange mutliplier
   int iAct = 0; // index into the current active set
@@ -185,31 +187,48 @@ bool SparseQuadProgSolver::updateActiveSet()
     }
   }
 
-  // Check if the current solution is feasible
-  bool isFeasible = true;
+  // Compute the largest constraint violation to add to the active set:
+  double cstMax = 0.0;  // maximum constraint violation
+  int iAdd = -1; // index of constraint to add
   for (int iVar = 0; iVar < nVar_; iVar++) {
     bool low = decVar_(iVar) < xLow_(iVar) - tol_;
     bool upp = decVar_(iVar) > xUpp_(iVar) + tol_;
     if (low || upp) {
-      isFeasible = false;
-      if (actSetLow_[iVar] || actSetUpp_[iVar]) {
-        ROS_ERROR("Internal Error: limit constraint violation in active set!");
-        result_.info = SparseQuadProgSolver::ExitCode::InternalError;
-        return false;
+      double err = 0.0;
+      if (low) { err = xLow_(iVar) - decVar_(iVar); }
+      if (upp) { err = decVar_(iVar) - xUpp_(iVar); }
+      if (err > cstMax) {
+        iAdd = iVar;
+        cstMax = err;
       }
-      if (low) { actSetLow_[iVar] = true; }
-      if (upp) { actSetUpp_[iVar] = true; }
     }
   }
 
+  // // Sanity check:
+  // if (iAdd == iRem) {
+  //   ROS_ERROR("Something went terribly wrong!");
+  //   result_.info = SparseQuadProgSolver::ExitCode::InternalError;
+  //   return false;
+  // }
+
+  // Add one element to the active set, if allowed
+  if (iAdd >= 0) {
+    /* DEBUG */ ROS_INFO("Adding constraint %d to the active set.", iAdd);
+    bool low = decVar_(iAdd) < xLow_(iAdd) - tol_;
+    bool upp = decVar_(iAdd) > xUpp_(iAdd) + tol_;
+    if (low) { actSetLow_[iAdd] = true; }
+    if (upp) { actSetUpp_[iAdd] = true; }
+  }
+
   // Remove one element from the active set, if allowed:
-  if (iRem >= 0) {
+  if (iRem >= 0 && iAdd == -1) {  // TODO: check this...
     /* DEBUG */ ROS_INFO("Removing constraint %d from the active set.", iRem);
     actSetLow_[iRem] = false;
     actSetUpp_[iRem] = false;
   }
 
   // Update the result data if the solution is feasible and better than previous
+  bool isFeasible = iAdd < 0;  // no constraints added to the set
   if (isFeasible) {
     double objVal = computeObjectiveFunction();
     /* DEBUG */ ROS_INFO("Feasible solution with objective value: %f", objVal);
@@ -309,6 +328,7 @@ bool SparseQuadProgSolver::appendActiveSetConstraints()
   int nActive = countActiveConstraints();
   if (nActive < 0) { return false; }
   d_.resize(nActive);
+  /* DEBUG */ ROS_INFO("Active set size: %d", nActive);
 
   if (int(triplets_.size()) != nCore_) {
     ROS_ERROR("Cannot append active set constraint: triplet vector invalid size!");
@@ -321,11 +341,13 @@ bool SparseQuadProgSolver::appendActiveSetConstraints()
       d_(iAct) = -xLow_(iVar);
       triplets_.push_back(Eigen::Triplet<double>(nVar_ + nCst_ + iAct, iVar, -1.0));
       triplets_.push_back(Eigen::Triplet<double>(iVar, nVar_ + nCst_ + iAct, -1.0));
+      iAct++;
     }
     if (actSetUpp_[iVar]) {
       d_(iAct) = xUpp_(iVar);
       triplets_.push_back(Eigen::Triplet<double>(nVar_ + nCst_ + iAct, iVar, 1.0));
       triplets_.push_back(Eigen::Triplet<double>(iVar, nVar_ + nCst_ + iAct, 1.0));
+      iAct++;
     }
   }
   /* DEBUG */ ROS_INFO("Triplets with active set:");
