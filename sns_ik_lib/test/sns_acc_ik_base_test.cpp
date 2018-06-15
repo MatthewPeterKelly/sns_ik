@@ -22,7 +22,7 @@
 #include <Eigen/Dense>
 #include <ros/console.h>
 
-#include <sns_ik/sns_vel_ik_base.hpp>
+#include <sns_ik/sns_acc_ik_base.hpp>
 #include "rng_utilities.hpp"
 
 /*************************************************************************************************/
@@ -70,11 +70,13 @@ TEST(sns_vel_ik_base, basic_no_limits)
     Eigen::VectorXd dq;
     double taskScale;
 
+    Eigen::VectorXd dJdq;
+
     // solve
-    sns_ik::SnsVelIkBase::uPtr ikSolver = sns_ik::SnsVelIkBase::create(nJoint);
+    sns_ik::SnsAccIkBase::uPtr ikSolver = sns_ik::SnsAccIkBase::create(nJoint);
     ASSERT_TRUE(ikSolver.get() != nullptr);
-    sns_ik::SnsVelIkBase::ExitCode exitCode = ikSolver->solve(J, dx, &dq, &taskScale);
-    ASSERT_TRUE(exitCode == sns_ik::SnsVelIkBase::ExitCode::Success);
+    sns_ik::SnsAccIkBase::ExitCode exitCode = ikSolver->solve(J, dJdq, dx, &dq, &taskScale);
+    ASSERT_TRUE(exitCode == sns_ik::SnsAccIkBase::ExitCode::Success);
 
     // check requirements
     ASSERT_LE(taskScale, 1.0 + tol);
@@ -112,17 +114,19 @@ TEST(sns_vel_ik_base, basic_with_limits)
     taskScaleMin = std::min(1.0, taskScaleMin);  // clamp max value to 1.0
     Eigen::VectorXd dx = dxFeas / taskScaleMin;
 
+    Eigen::VectorXd dJdq;
+
     // solve
     Eigen::VectorXd dq;
     double taskScale;
-    sns_ik::SnsVelIkBase::uPtr ikSolver = sns_ik::SnsVelIkBase::create(dqLow, dqUpp);
+    sns_ik::SnsAccIkBase::uPtr ikSolver = sns_ik::SnsAccIkBase::create(dqLow, dqUpp);
     ASSERT_TRUE(ikSolver.get() != nullptr);
     ros::Time startTime = ros::Time::now();
-    sns_ik::SnsVelIkBase::ExitCode exitCode = ikSolver->solve(J, dx, &dq, &taskScale);
+    sns_ik::SnsAccIkBase::ExitCode exitCode = ikSolver->solve(J, dJdq, dx, &dq, &taskScale);
     double solveTime = (ros::Time::now() - startTime).toSec();
     meanSolveTime += solveTime;
 
-    if (exitCode == sns_ik::SnsVelIkBase::ExitCode::Success) {
+    if (exitCode == sns_ik::SnsAccIkBase::ExitCode::Success) {
       nPass++;
       // check requirements
       ASSERT_LE(taskScale, 1.0 + tol);
