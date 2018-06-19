@@ -19,6 +19,9 @@
  *    limitations under the License.
  */
 
+#ifndef SNS_IK_LIB__SNS_LINEAR_SOLVER_H_
+#define SNS_IK_LIB__SNS_LINEAR_SOLVER_H_
+
 /*
  *
  * This class is used to solve linear systems. It is a wrapper for two different internal solvers:
@@ -116,3 +119,5 @@ private:
 #endif  // EIGEN_VERSION_AT_LEAST(3,3,4)  //- - - - - - - - - - - - - - - - - - - - - - - - - - //
 
 }  // namespace sns_ik
+
+#endif // SNS_IK_LIB__SNS_LINEAR_SOLVER_H_
