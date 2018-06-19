@@ -1,4 +1,4 @@
-/** @file sns_vel_ik_base.cpp
+/** @file sns_acc_ik_base.cpp
  *
  * @brief The file provides the basic implementation of the SNS-IK acceleration solver
  *
@@ -26,9 +26,6 @@
 #include <limits>
 
 namespace sns_ik {
-
-// Nice formatting for printing eigen arrays.
-static const Eigen::IOFormat EigArrFmt4(4, 0, ", ", "\n", "[", "]");
 
 /*
  * The code of the SNS-IK solver relies on a linear solver. If the linear system is infeasible,
@@ -59,42 +56,7 @@ static const double MAXIMUM_FINITE_SCALE_FACTOR = 1e10;
 // Tolerance for checks on the acceleration limits
 static const double VELOCITY_BOUND_TOLERANCE = 1e-8;
 
-/*************************************************************************************************
- *                                Private Functions                                              *
- *************************************************************************************************/
-namespace {
 
-/*
- * This algorithm computes the scale factor that is associated with a given joint, but considering
- * both the sensativity of the joint (a) and the distance to the upper and lower limits.
- * @param low: lower margin
- * @param upp: upper margin
- * @param a: margin scale factor
- * @return: joint scale factor
- */
-double fingScaleFactor(double low, double upp, double a)
-{
-  if (std::abs(a) > MAXIMUM_FINITE_SCALE_FACTOR) {
-    return 0.0;
-  }
-  if (a < 0.0 && low < 0.0) {
-    if (a < low) {
-      return low / std::min(a, -MINIMUM_FINITE_SCALE_FACTOR);
-    } else {
-      return 1.0;  // feasible without scaling!
-    }
-  } else if (a > 0.0 && upp > 0.0) {
-    if (upp < a) {
-      return upp / std::max(a, MINIMUM_FINITE_SCALE_FACTOR);
-    } else {
-      return 1.0;  // feasible without scaling!
-    }
-  } else {
-    return 0.0;  // infeasible
-  }
-}
-
-}  // private namespace
 /*************************************************************************************************
  *                                 Public Methods                                                *
  *************************************************************************************************/
@@ -167,6 +129,10 @@ SnsAccIkBase::ExitCode SnsAccIkBase::solve(const Eigen::MatrixXd& J, const Eigen
     ROS_ERROR("Bad Input: J.rows() == dx.size() is required!");
     return ExitCode::BadUserInput;
   }
+  if (int(dJdq.size()) != nTask) {
+    ROS_ERROR("Bad Input: dJdq.size() == dx.size() is required!");
+    return ExitCode::BadUserInput;
+  }
   if (int(J.cols()) != nJnt_) {
     ROS_ERROR("Bad Input: J.cols() == nJnt is required!");
     return ExitCode::BadUserInput;
@@ -199,7 +165,7 @@ SnsAccIkBase::ExitCode SnsAccIkBase::solve(const Eigen::MatrixXd& J, const Eigen
   for (int iter = 0; iter < nJnt_ * MAXIMUM_SOLVER_ITERATION_FACTOR; iter++) {
 
     // Compute the joint acceleration given current saturation set:
-    if (!solveProjectionEquation(J, JW, dqNull, dx, dq, &resErr)) {
+    if (!solveProjectionEquation(J, JW, dqNull, dx - dJdq, dq, &resErr)) {
       ROS_ERROR("Failed to solve projection equation!");
       return ExitCode::InternalError;
     }
@@ -278,7 +244,7 @@ SnsAccIkBase::ExitCode SnsAccIkBase::solve(const Eigen::MatrixXd& J, const Eigen
 
       // Compute the joint acceleration given current saturation set:
       Eigen::VectorXd dxScaled = (dx.array() * (*taskScale)).matrix();
-      if (!solveProjectionEquation(J, JW, dqNull, dxScaled, dq, &resErr)) {
+      if (!solveProjectionEquation(J, JW, dqNull, dxScaled - dJdq, dq, &resErr)) {
         ROS_ERROR("Failed to solve projection equation!");
         return ExitCode::InternalError;
       }
@@ -372,7 +338,7 @@ SnsAccIkBase::ExitCode SnsAccIkBase::computeTaskScalingFactor(const Eigen::Matri
   Eigen::ArrayXd uppMargin = (ddqUpp_ - b);
   for (int i = 0; i < nJnt_; i++) {
     if (jntIsFree[i]) {
-      jntScaleFactorArr(i) = fingScaleFactor(lowMargin(i), uppMargin(i), a(i));
+      jntScaleFactorArr(i) = findScaleFactor(lowMargin(i), uppMargin(i), a(i));
     } else {  // joint is constrained
       jntScaleFactorArr(i) = POS_INF;
     }
@@ -388,6 +354,30 @@ SnsAccIkBase::ExitCode SnsAccIkBase::computeTaskScalingFactor(const Eigen::Matri
     }
   }
   return ExitCode::Success;
+}
+
+/*************************************************************************************************/
+
+double SnsAccIkBase::findScaleFactor(double low, double upp, double a)
+{
+  if (std::abs(a) > MAXIMUM_FINITE_SCALE_FACTOR) {
+    return 0.0;
+  }
+  if (a < 0.0 && low < 0.0) {
+    if (a < low) {
+      return low / std::min(a, -MINIMUM_FINITE_SCALE_FACTOR);
+    } else {
+      return 1.0;  // feasible without scaling!
+    }
+  } else if (a > 0.0 && upp > 0.0) {
+    if (upp < a) {
+      return upp / std::max(a, MINIMUM_FINITE_SCALE_FACTOR);
+    } else {
+      return 1.0;  // feasible without scaling!
+    }
+  } else {
+    return 0.0;  // infeasible
+  }
 }
 
 /*************************************************************************************************/

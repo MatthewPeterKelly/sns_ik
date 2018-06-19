@@ -168,6 +168,17 @@ protected:
                                 const std::vector<bool>& jntIsFree,
                                  double* taskScale, int* jntIdx, double* resErr);
 
+/*
+ * This algorithm computes the scale factor that is associated with a given joint, but considering
+ * both the sensativity of the joint (a) and the distance to the upper and lower limits.
+ * @param low: lower margin
+ * @param upp: upper margin
+ * @param a: margin scale factor
+ * @return: joint scale factor
+ */
+static double findScaleFactor(double low, double upp, double a);
+
+
 private:
 
   int nJnt_; //!< number of joints

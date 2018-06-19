@@ -1,6 +1,6 @@
-/**  @file sns_vel_ik_base_test.cpp
+/**  @file sns_acc_ik_base_test.cpp
  *
- *  @brief Unit Test: sns_vel_ik_base solver
+ *  @brief Unit Test: sns_acc_ik_base solver
  *  @author Matthew Kelly
  *
  *    Copyright 2018 Rethink Robotics
@@ -56,7 +56,7 @@ void checkVectorLimits(const Eigen::VectorXd& low, const Eigen::VectorXd& val, c
  */
 TEST(sns_vel_ik_base, basic_no_limits)
 {
-  sns_ik::rng_util::setRngSeed(75716, 11487);  // set the initial seed for the random number generators
+  sns_ik::rng_util::setRngSeed(25398, 99231);  // set the initial seed for the random number generators
   int nTest = 100;
   double tol = 1e-10;
   for (int iTest = 0; iTest < nTest; iTest++) {
@@ -65,12 +65,11 @@ TEST(sns_vel_ik_base, basic_no_limits)
     int nTask = sns_ik::rng_util::getRngInt(0, 1, 6);
     int nJoint = sns_ik::rng_util::getRngInt(0, nTask, nTask + 4);
     Eigen::MatrixXd J = sns_ik::rng_util::getRngMatrixXd(0, nTask, nJoint, -1.0, 1.0);
+    Eigen::VectorXd dJdq = sns_ik::rng_util::getRngVectorXd(0, nTask, -1.0, 1.0);
     Eigen::VectorXd dx = sns_ik::rng_util::getRngVectorXd(0, nTask, -1.0, 1.0);
     Eigen::VectorXd tolVec = tol * Eigen::VectorXd::Ones(nJoint);
     Eigen::VectorXd dq;
     double taskScale;
-
-    Eigen::VectorXd dJdq;
 
     // solve
     sns_ik::SnsAccIkBase::uPtr ikSolver = sns_ik::SnsAccIkBase::create(nJoint);
@@ -81,7 +80,7 @@ TEST(sns_vel_ik_base, basic_no_limits)
     // check requirements
     ASSERT_LE(taskScale, 1.0 + tol);
     ASSERT_GT(taskScale, 0.0);
-    checkEqualVector(taskScale * dx, J * dq, tol);
+    checkEqualVector(taskScale * dx, J * dq + dJdq, tol);
   }
 }
 
@@ -104,17 +103,16 @@ TEST(sns_vel_ik_base, basic_with_limits)
     int nTask = sns_ik::rng_util::getRngInt(0, 1, 6);
     int nJoint = sns_ik::rng_util::getRngInt(0, nTask, nTask + 4);
     Eigen::MatrixXd J = sns_ik::rng_util::getRngMatrixXd(0, nTask, nJoint, -2.0, 2.0);
+    Eigen::VectorXd dJdq = sns_ik::rng_util::getRngVectorXd(0, nTask, -1.0, 1.0);
     Eigen::ArrayXd dqLow = sns_ik::rng_util::getRngVectorXd(0, nJoint, -5.0, -0.5);
     Eigen::ArrayXd dqUpp = sns_ik::rng_util::getRngVectorXd(0, nJoint, 0.5, 5.0);
     Eigen::VectorXd dqTest = sns_ik::rng_util::getRngArrBndXd(0, dqLow, dqUpp).matrix();
 
     // create a task that is feasible with scaling
-    Eigen::VectorXd dxFeas = J*dqTest; // this task velocity is feasible by definition
+    Eigen::VectorXd dxFeas = J*dqTest + dJdq; // this task acceleration is feasible by definition
     double taskScaleMin = sns_ik::rng_util::getRngDouble(0, 0.2, 1.2);
     taskScaleMin = std::min(1.0, taskScaleMin);  // clamp max value to 1.0
     Eigen::VectorXd dx = dxFeas / taskScaleMin;
-
-    Eigen::VectorXd dJdq;
 
     // solve
     Eigen::VectorXd dq;
@@ -131,7 +129,7 @@ TEST(sns_vel_ik_base, basic_with_limits)
       // check requirements
       ASSERT_LE(taskScale, 1.0 + tol);
       if (taskScale < taskScaleMin - tol) nSubOpt++;
-      checkEqualVector(taskScale * dx, J * dq, tol);
+      checkEqualVector(taskScale * dx, J * dq + dJdq, tol);
       checkVectorLimits(dqLow, dq, dqUpp, tol);
     } else {
       nFail++;

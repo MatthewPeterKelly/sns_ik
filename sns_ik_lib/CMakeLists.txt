@@ -72,7 +72,6 @@ if (CATKIN_ENABLE_TESTING)
   target_link_libraries(sns_ik_vel_test sns_ik sns_ik_test ${catkin_LIBRARIES})
   catkin_add_gtest(sns_vel_ik_base_test test/sns_vel_ik_base_test.cpp)
   target_link_libraries(sns_vel_ik_base_test sns_ik sns_ik_test ${catkin_LIBRARIES})
-
   catkin_add_gtest(sns_acc_ik_base_test test/sns_acc_ik_base_test.cpp)
   target_link_libraries(sns_acc_ik_base_test sns_ik sns_ik_test sns_ik_util ${catkin_LIBRARIES})
 
